@@ -1,7 +1,7 @@
+import json
 from datetime import datetime
 from collections import UserDict
 from abc import ABC, abstractmethod
-import pickle
 
 
 def input_error(func):
@@ -56,8 +56,7 @@ class Birthday(Field):
             raise ValueError("Date is not correct format. Format should be dd.mm.yyyy")
 
     def __repr__(self):
-        birthday_date = datetime.strptime(self.value, "%d.%m.%Y").date()
-        return f"Birthday date is: {birthday_date.strftime('%d.%m.%Y')}"
+        return f"Birthday date is: {self.value}"
 
 class Record:
     def __init__(self, name: str, phone: str, birthday = None):
@@ -89,7 +88,7 @@ class AddressBook(UserDict):
         else:
             raise ValueError("Contact not found")
 
-    def chane_phone(self, name, phone):
+    def change_phone(self, name, phone):
         if name in self.data:
             self.data[name].phone = phone
             return f"{self.data[name].name} changed phone number to {self.data[name].phone}"
@@ -114,31 +113,46 @@ class AddressBook(UserDict):
 
         for name, record in self.data.items():
             if record.birthday is not None:
-                birthday_date = datetime.strptime(record.birthday.value, "%d.%m.%Y").date()
+                birthday_date = datetime.strptime(str(record.birthday), "%d.%m.%Y").date()
                 birthday_week = birthday_date.isocalendar()[1]
                 if current_week == birthday_week:
                     upcoming_birthdays.append((name, record.birthday))
-
         return upcoming_birthdays
 
     def __repr__(self):
         return f"Contacts: {self.data}"
 
 
-def save_data(book, filename="addressbook.pkl"):
-    with open(filename, "wb") as f:
-        pickle.dump(book, f)
-
-def load_data(filename="addressbook.pkl"):
+def load_data(filename="address.json"):
     try:
-        with open(filename, "rb") as f:
-            return pickle.load(f)
+        with open(filename, "r") as f:
+            data = json.load(f)
+            book = AddressBook()
+            for name, record_data in data.items():
+                name_obj = Name(record_data['name'])
+                phone_obj = Phone(record_data['phone'])
+                birthday_obj = Birthday(record_data['birthday']) if record_data['birthday'] else None
+                record = Record(name=name_obj, phone=phone_obj, birthday=birthday_obj)
+                book.data[name] = record
+            return book
     except FileNotFoundError:
         return AddressBook()
 
 
+def save_data(book, filename="address.json"):
+    data = {}
+    for name, record in book.data.items():
+        data[name]= {
+            "name": str(record.name),
+            "phone": str(record.phone),
+            "birthday": str(record.birthday) if record.birthday else None
+        }
+    with open(filename, "w") as file:
+        json.dump(data, file, indent=4)
 
 def parse_input(user_input: str):
+    if not user_input:
+        return None,[]
     cmd, *args = user_input.split()
     cmd = cmd.strip().lower()
     return cmd, args
@@ -206,7 +220,7 @@ def main():
 
             elif command == "change":
                 name, phone = args
-                print(book.chane_phone(name, phone))
+                print(book.change_phone(name, phone))
 
             elif command == "delete":
                 name = args[0]
@@ -237,6 +251,7 @@ def main():
             save_data(book)
             print("Good bye!")
             break
+
         else:
             print("Invalid command.")
 
